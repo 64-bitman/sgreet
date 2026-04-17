@@ -1,0 +1,17 @@
+Language: Cpp
+
+UseTab: Never
+IndentWidth: 4
+ColumnLimit: 80
+
+BreakBeforeBraces: Allman
+
+AlignAfterOpenBracket: BlockIndent
+
+AlwaysBreakAfterDefinitionReturnType: All
+
+IndentGotoLabels: false
+
+IndentPPDirectives: AfterHash
+
+AlignConsecutiveDeclarations: true

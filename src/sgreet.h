@@ -33,17 +33,23 @@ struct sgreet
 
     enum sgreet_state state;
 
-    struct ui_label   issue;
-    struct ui_label   entry; // Current desktop entry to be used
+    struct ui_label issue;
+    struct ui_label entry; // Current desktop entry to be used
+    struct ui_label msg;   // Used for errors or info responses
+#define MSG_DELAY 2000
+    int               msg_remain; // Remaining time in ms to display msg
     struct ui_textbox username;
 
     int                auth_len;
     struct ui_textbox *auth; // Array of auth prompts from greetd. NULL if there
                              // are none.
 
+    int bot_row;             // Bottommost row
+
     int sock_fd; // File descriptor for greetd socket
 
     bool persist;
+    bool asterisks;
 };
 
 extern struct sgreet SGREET;

@@ -3,11 +3,13 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static const struct option OPTIONS[] = {
     {"sessions", required_argument, 0, 's'},
     {"persist", no_argument, 0, 'p'},
-    {"logfile", no_argument, 0, 'l'},
+    {"logfile", required_argument, 0, 'l'},
+    {"asterisks", no_argument, 0, 'a'},
 };
 
 int
@@ -20,7 +22,7 @@ main(int argc, char **argv)
                                 // directory containing .desktop files.
     int session_dirs_len = 0;
 
-    while ((c = getopt_long(argc, argv, "s:p", OPTIONS, &idx)) != -1)
+    while ((c = getopt_long(argc, argv, "s:pl:a", OPTIONS, &idx)) != -1)
     {
         switch (c)
         {
@@ -29,13 +31,25 @@ main(int argc, char **argv)
             session_dirs =
                 realloc(session_dirs, session_dirs_len * sizeof(char *));
 
-            session_dirs[session_dirs_len - 1] = sgreet_strdup(optarg);
+            if ((session_dirs[session_dirs_len - 1] = strdup(optarg)) == NULL)
+                session_dirs_len--;
             break;
         case 'p':
             SGREET.persist = true;
             break;
         case 'l':
-            SGREET.logfile = fopen(optarg, "w");
+        {
+            // Clear the file first
+            FILE *tmp = fopen(optarg, "w");
+
+            if (tmp == NULL)
+                break;
+            fclose(tmp);
+            SGREET.logfile = fopen(optarg, "a");
+            break;
+        }
+        case 'a':
+            SGREET.asterisks = true;
             break;
         default:
             fprintf(stderr, "Failed parsing command line arguments\n");
@@ -47,8 +61,8 @@ main(int argc, char **argv)
 
     ret = sgreet_init((const char **)session_dirs, session_dirs_len);
     for (int i = 0; i < session_dirs_len; i++)
-        sgreet_free(session_dirs[i]);
-    sgreet_free(session_dirs);
+        free(session_dirs[i]);
+    free(session_dirs);
 
     if (ret == FAIL)
         return EXIT_FAILURE;

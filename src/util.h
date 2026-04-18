@@ -16,8 +16,4 @@
 #define NUL '\0'
 
 void  sgreet_log(const char *fmt, ...) PRINTFLIKE(1, 2);
-void *sgreet_malloc(size_t sz);
-void *sgreet_realloc(void *ptr, size_t sz);
-char *sgreet_strdup(const char *str);
 char *sgreet_strdup_printf(const char *fmt, ...);
-void  sgreet_free(void *ptr);

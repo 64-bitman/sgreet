@@ -2,42 +2,18 @@
 #include "util.h"
 #include <ncurses.h>
 #include <stdarg.h>
-#include <stdlib.h>
 #include <string.h>
 
-static WINDOW *
-create_win(int nlines, int ncols, int row, int col)
-{
-    WINDOW *win = newwin(nlines, ncols, row, col);
-
-    if (win == NULL)
-    {
-        fprintf(stderr, "newwin() error\n");
-        abort();
-    }
-    return win;
-}
-
 void
-ui_label_init(struct ui_label *lb, int row, int col, const char *fmt, ...)
+ui_label_init(struct ui_label *lb, int row, int col)
 {
-    lb->win = create_win(1, COLS, row, col);
-
-    if (fmt != NULL)
-    {
-        va_list ap;
-
-        va_start(ap, fmt);
-        vsnprintf(lb->str, UI_LABEL_SIZE, fmt, ap);
-        va_end(ap);
-        lb->redraw = true;
-    }
+    lb->win = newwin(1, COLS, row, col);
 }
 
 void
 ui_label_draw(struct ui_label *lb)
 {
-    if (!lb->redraw)
+    if (!lb->redraw || lb->win == NULL)
         return;
 
     werase(lb->win);
@@ -52,6 +28,8 @@ ui_label_draw(struct ui_label *lb)
 void
 ui_label_highlight(struct ui_label *lb, bool on)
 {
+    if (lb->win == NULL)
+        return;
     if (on)
         wattron(lb->win, A_REVERSE | A_BOLD);
     else
@@ -60,13 +38,27 @@ ui_label_highlight(struct ui_label *lb, bool on)
 }
 
 void
+ui_label_setpos(struct ui_label *lb, int row, int col)
+{
+    if (lb->win == NULL)
+        return;
+
+    mvwin(lb->win, row, col);
+}
+
+void
 ui_label_update(struct ui_label *lb, const char *fmt, ...)
 {
     va_list ap;
 
-    va_start(ap, fmt);
-    vsnprintf(lb->str, UI_LABEL_SIZE, fmt, ap);
-    va_end(ap);
+    if (fmt == NULL)
+        *lb->str = NUL;
+    else
+    {
+        va_start(ap, fmt);
+        vsnprintf(lb->str, sizeof(lb->str), fmt, ap);
+        va_end(ap);
+    }
     lb->redraw = true;
 }
 
@@ -86,12 +78,12 @@ ui_textbox_init(
     struct ui_textbox *tb, int row, int col, const char *promptfmt, ...
 )
 {
-    tb->win = create_win(1, COLS, row, col);
+    tb->win = newwin(1, COLS, row, col);
 
     va_list ap;
 
     va_start(ap, promptfmt);
-    vsnprintf(tb->prompt, UI_TEXTBOX_PROMPTSIZE, promptfmt, ap);
+    vsnprintf(tb->prompt, sizeof(tb->prompt), promptfmt, ap);
     va_end(ap);
     tb->promptlen = strlen(tb->prompt);
 
@@ -108,11 +100,20 @@ ui_textbox_init(
 void
 ui_textbox_draw(struct ui_textbox *tb)
 {
-    if (!tb->redraw)
+    if (!tb->redraw || tb->win == NULL)
         return;
 
     werase(tb->win);
-    mvwprintw(tb->win, 0, 0, "%s%.*s", tb->prompt, tb->len, tb->content);
+    if (tb->show == UI_TEXTBOX_SHOW_NORMAL)
+        mvwprintw(tb->win, 0, 0, "%s%.*s", tb->prompt, tb->len, tb->content);
+    else if (tb->show == UI_TEXTBOX_SHOW_ASTERISKS)
+    {
+        mvwprintw(tb->win, 0, 0, "%s", tb->prompt);
+        for (int i = 0; i < tb->len; i++)
+            waddch(tb->win, '*');
+    }
+    else
+        mvwprintw(tb->win, 0, 0, "%s", tb->prompt);
     wnoutrefresh(tb->win);
     tb->redraw = false;
 }
@@ -123,7 +124,12 @@ ui_textbox_draw(struct ui_textbox *tb)
 void
 ui_textbox_focus(struct ui_textbox *tb)
 {
-    wmove(tb->win, 0, tb->promptlen + tb->curpos);
+    if (tb->win == NULL)
+        return;
+    if (tb->show == UI_TEXTBOX_SHOW_INVIS)
+        wmove(tb->win, 0, tb->promptlen);
+    else
+        wmove(tb->win, 0, tb->promptlen + tb->curpos);
     wrefresh(tb->win);
 }
 
@@ -135,7 +141,7 @@ ui_textbox_add(struct ui_textbox *tb, const char *text)
 {
     int len = strlen(text);
 
-    if (tb->len + len >= UI_TEXTBOX_SIZE)
+    if (tb->len + len >= (int)sizeof(tb->content))
         return;
 
     // Shift text after cursor so it isn't overwritten

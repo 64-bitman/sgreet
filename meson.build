@@ -22,5 +22,6 @@ wlip = executable(
   'src/main.c',
   sources,
   include_directories: includes,
-  dependencies: [json_dep, ncurses_dep]
+  dependencies: [json_dep, ncurses_dep],
+  install: true
 )

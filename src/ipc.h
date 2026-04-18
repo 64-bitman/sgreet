@@ -8,33 +8,36 @@ enum ipc_request_type
     IPC_REQUEST_CANCEL_SESSION
 };
 
-struct ipc_request
-{
-    enum ipc_request_type type;
-};
-
-#define CREATE_SESSION_USERNAME_MAX 64
 struct ipc_request_create_session
 {
-    struct ipc_request base;
-    char              *username;
+    char username[256];
 };
 
 struct ipc_request_start_session
 {
-    struct ipc_request base;
-    char              *cmd;
+    char cmd[256];
 };
 
 struct ipc_request_cancel_session
 {
-    struct ipc_request base;
 };
 
 struct ipc_request_post_auth_message_response
 {
-    struct ipc_request base;
-    char              *str; // May be NULL
+    char str[256]; // May be empty string
+};
+
+struct ipc_request
+{
+    enum ipc_request_type type;
+    union
+    {
+        struct ipc_request_create_session create_session;
+        struct ipc_request_start_session  start_session;
+        struct ipc_request_cancel_session cancel_session;
+        struct ipc_request_post_auth_message_response
+            post_auth_message_response;
+    } body;
 };
 
 enum ipc_auth_message_type
@@ -58,28 +61,32 @@ enum ipc_response_type
     IPC_RESPONSE_AUTH_MESSAGE
 };
 
-struct ipc_response
-{
-    enum ipc_response_type type;
-};
-
 struct ipc_response_success
 {
-    struct ipc_response base;
 };
 
 struct ipc_response_error
 {
-    struct ipc_response base;
     enum ipc_error_type type;
-    char               *description;
+    char                description[256];
 };
 
 struct ipc_response_auth_message
 {
-    struct ipc_response        base;
     enum ipc_auth_message_type type;
-    char                      *message;
+    char                       message[256];
 };
 
-int ipc_init(void);
+struct ipc_response
+{
+    enum ipc_response_type type;
+    union
+    {
+        struct ipc_response_success      success;
+        struct ipc_response_error        error;
+        struct ipc_response_auth_message auth_message;
+    } body;
+};
+
+int                 ipc_init(void);
+struct ipc_response ipc_roundtrip(int fd, struct ipc_request *req);

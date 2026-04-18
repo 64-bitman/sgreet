@@ -3,6 +3,7 @@
 #include "util.h"
 #include <dirent.h>
 #include <ncurses.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <time.h>
@@ -13,9 +14,9 @@ struct sgreet SGREET;
 static void
 clear_desktop_entry(struct desktop_entry *entry)
 {
-    sgreet_free(entry->path);
-    sgreet_free(entry->name);
-    sgreet_free(entry->exec);
+    free(entry->path);
+    free(entry->name);
+    free(entry->exec);
 }
 
 /*
@@ -30,7 +31,12 @@ parse_desktop_file(const char *path, struct desktop_entry *entry)
     if (fp == NULL)
         return FAIL;
 
-    entry->path = sgreet_strdup(path);
+    entry->path = strdup(path);
+    if (entry->path == NULL)
+    {
+        fclose(fp);
+        return FAIL;
+    }
 
     char   *buf = NULL;
     size_t  sz;
@@ -41,6 +47,8 @@ parse_desktop_file(const char *path, struct desktop_entry *entry)
 
     while ((len = getline(&buf, &sz, fp)) != -1)
     {
+        buf[len - 1] = NUL;
+
         if (strcmp(buf, "[Desktop Entry]") == 0 || *buf == '#')
             continue;
 
@@ -60,10 +68,10 @@ parse_desktop_file(const char *path, struct desktop_entry *entry)
         else
             continue;
 
-        *store = sgreet_strdup(p);
+        *store = strdup(p);
     }
 
-    sgreet_free(buf);
+    free(buf);
     fclose(fp);
 
     if (entry->name == NULL || entry->exec == NULL)
@@ -81,7 +89,7 @@ parse_desktop_file(const char *path, struct desktop_entry *entry)
  * static buffer
  */
 static char *
-get_issue(const char *path)
+get_issue(const char *path, bool *has_time)
 {
     FILE *fp = fopen(path, "r");
 
@@ -104,11 +112,18 @@ get_issue(const char *path)
             switch (c)
             {
             case 'd': // Current date
+            case 't': // Current time
             {
                 time_t     t = time(NULL);
                 struct tm *tm = localtime(&t);
 
-                len += strftime(buf + len, max, "%F", tm);
+                if (c == 'd')
+                    len += strftime(buf + len, max, "%F", tm);
+                else
+                {
+                    len += strftime(buf + len, max, "%I:%M:%S %p", tm);
+                    *has_time = true;
+                }
                 break;
             }
             case 'l': // Current TTY
@@ -135,6 +150,7 @@ get_issue(const char *path)
             buf[len++] = c;
     }
 #undef BUFSIZE
+    buf[len - 1] = NUL;
 
     fclose(fp);
     return buf;
@@ -169,13 +185,21 @@ sgreet_init(const char **session_dirs, int session_dirs_len)
                 continue;
 
             char *fullpath = sgreet_strdup_printf("%s/%s", dir, de->d_name);
-            int   ret;
+            int   ret = FAIL;
 
-            entries = sgreet_realloc(
-                entries, ++entries_len * sizeof(struct desktop_entry)
-            );
-            ret = parse_desktop_file(fullpath, entries + entries_len - 1);
-            sgreet_free(fullpath);
+            if (fullpath == NULL)
+                continue;
+
+            struct desktop_entry *tmp =
+                realloc(entries, ++entries_len * sizeof(struct desktop_entry));
+
+            if (tmp != NULL)
+            {
+                entries = tmp;
+                ret = parse_desktop_file(fullpath, entries + entries_len - 1);
+            }
+
+            free(fullpath);
 
             if (ret == FAIL)
                 entries_len--;
@@ -212,11 +236,9 @@ sgreet_init(const char **session_dirs, int session_dirs_len)
 void
 sgreet_uninit(void)
 {
-    sgreet_free(SGREET.tty_name);
-
     for (int i = 0; i < SGREET.entries_len; i++)
         clear_desktop_entry(SGREET.entries + i);
-    sgreet_free(SGREET.entries);
+    free(SGREET.entries);
 
     if (SGREET.logfile != NULL)
         fclose(SGREET.logfile);
@@ -228,11 +250,130 @@ sgreet_uninit(void)
     {
         for (int i = 0; i < SGREET.auth_len; i++)
             ui_textbox_clear(SGREET.auth + i);
-        sgreet_free(SGREET.auth);
+        free(SGREET.auth);
     }
 
     if (SGREET.sock_fd != -1)
         close(SGREET.sock_fd);
+}
+
+/*
+ * Append a new auth prompt to answer auth message.
+ */
+static void
+add_auth_prompt(const char *prompt, bool secret)
+{
+    struct ui_textbox *tmp =
+        realloc(SGREET.auth, sizeof(struct ui_textbox) * (SGREET.auth_len + 1));
+
+    if (tmp == NULL)
+        return;
+
+    SGREET.auth = tmp;
+
+    struct ui_textbox *tb = SGREET.auth + SGREET.auth_len;
+
+    if (secret)
+    {
+        if (SGREET.asterisks)
+            tb->show = UI_TEXTBOX_SHOW_ASTERISKS;
+        else
+            tb->show = UI_TEXTBOX_SHOW_INVIS;
+    }
+    else
+            tb->show = UI_TEXTBOX_SHOW_NORMAL;
+
+    SGREET.state = SGREET_STATE_AUTH;
+
+    ui_textbox_init(tb, SGREET.bot_row, 0, "%s", prompt);
+
+    SGREET.bot_row++;
+    SGREET.auth_len++;
+}
+
+static void
+cancel_session(void)
+{
+    sgreet_log("Cancelling current session");
+
+    struct ipc_request req;
+    req.type = IPC_REQUEST_CANCEL_SESSION;
+
+    ipc_roundtrip(SGREET.sock_fd, &req);
+
+    for (int i = 0; i < SGREET.auth_len; i++)
+    {
+        werase(SGREET.auth[i].win);
+        wrefresh(SGREET.auth[i].win);
+        ui_textbox_clear(SGREET.auth + i);
+    }
+    free(SGREET.auth);
+    SGREET.auth = NULL;
+    SGREET.auth_len = 0;
+    SGREET.bot_row = 4;
+    SGREET.state = SGREET_STATE_USERNAME;
+}
+
+static void
+handle_response(struct ipc_response *resp, bool start)
+{
+    switch (resp->type)
+    {
+    case IPC_RESPONSE_SUCCESS:
+    {
+        if (start)
+        {
+            endwin();
+            sgreet_uninit();
+            exit(0);
+        }
+        struct ipc_request req;
+
+        req.type = IPC_REQUEST_START_SESSION;
+        snprintf(
+            req.body.start_session.cmd, sizeof(req.body.start_session.cmd),
+            "%s", SGREET.entries[SGREET.cur_entry].exec
+        );
+
+        struct ipc_response resp = ipc_roundtrip(SGREET.sock_fd, &req);
+
+        sgreet_log("Starting session");
+
+        handle_response(&resp, true);
+        break;
+    }
+    case IPC_RESPONSE_ERROR:
+    {
+        ui_label_update(&SGREET.msg, "Error: %s", resp->body.error.description);
+        SGREET.msg_remain = MSG_DELAY;
+        cancel_session();
+        break;
+    }
+    case IPC_RESPONSE_AUTH_MESSAGE:
+    {
+        switch (resp->body.auth_message.type)
+        {
+        case IPC_AUTH_MESSAGE_SECRET:
+            add_auth_prompt(resp->body.auth_message.message, true);
+            break;
+        case IPC_AUTH_MESSAGE_VISIBLE:
+            add_auth_prompt(resp->body.auth_message.message, false);
+            break;
+        case IPC_AUTH_MESSAGE_INFO:
+            ui_label_update(
+                &SGREET.msg, ">>> %s", resp->body.auth_message.message
+            );
+            break;
+        case IPC_AUTH_MESSAGE_ERROR:
+            ui_label_update(
+                &SGREET.msg, "Authentication error: %s",
+                resp->body.auth_message.message
+            );
+            break;
+        }
+        break;
+    }
+    }
 }
 
 static void
@@ -253,6 +394,28 @@ handle_username_state(int c)
         break;
     case KEY_BACKSPACE:
         ui_textbox_del(&SGREET.username, 1);
+        break;
+    case KEY_ENTER:
+    case '\n':
+    case '\r':
+        sgreet_log(
+            "Creating session for '%.*s'", SGREET.username.len,
+            SGREET.username.content
+        );
+
+        struct ipc_request req;
+
+        req.type = IPC_REQUEST_CREATE_SESSION;
+
+        snprintf(
+            req.body.create_session.username,
+            sizeof(req.body.create_session.username), "%.*s",
+            SGREET.username.len, SGREET.username.content
+        );
+
+        struct ipc_response resp = ipc_roundtrip(SGREET.sock_fd, &req);
+
+        handle_response(&resp, false);
         break;
     default:
     {
@@ -280,16 +443,21 @@ handle_entry_state(int c)
     switch (c)
     {
     case KEY_LEFT:
+    case 'h':
         if (SGREET.cur_entry > 0)
             SGREET.cur_entry--;
         apply_current_entry();
         break;
     case KEY_RIGHT:
+    case 'l':
         if (SGREET.cur_entry < SGREET.entries_len - 1)
             SGREET.cur_entry++;
         apply_current_entry();
         break;
     case KEY_DOWN:
+    case KEY_ENTER:
+    case '\n':
+    case '\r':
         SGREET.state = SGREET_STATE_USERNAME;
         ui_label_highlight(&SGREET.entry, false);
         set_cursor(CURSOR_UNSLEEP);
@@ -300,6 +468,73 @@ handle_entry_state(int c)
 static void
 handle_auth_state(int c)
 {
+    struct ui_textbox *tb = SGREET.auth + SGREET.auth_len - 1;
+
+    switch (c)
+    {
+    case KEY_LEFT:
+        ui_textbox_move(tb, -1);
+        break;
+    case KEY_RIGHT:
+        ui_textbox_move(tb, 1);
+        break;
+    case KEY_BACKSPACE:
+        ui_textbox_del(tb, 1);
+        break;
+    case KEY_ENTER:
+    case '\n':
+    case '\r':
+        sgreet_log("Answering auth message");
+
+        struct ipc_request req;
+
+        req.type = IPC_REQUEST_POST_AUTH_MESSAGE_RESPONSE;
+
+        snprintf(
+            req.body.post_auth_message_response.str,
+            sizeof(req.body.post_auth_message_response.str), "%.*s", tb->len,
+            tb->content
+        );
+
+        ui_label_update(&SGREET.msg, "Waiting for response...");
+        ui_label_setpos(&SGREET.msg, SGREET.bot_row, 0);
+        ui_label_draw(&SGREET.msg);
+        doupdate();
+
+        struct ipc_response resp = ipc_roundtrip(SGREET.sock_fd, &req);
+
+        ui_label_update(&SGREET.msg, NULL);
+        werase(SGREET.msg.win);
+        wrefresh(SGREET.msg.win);
+
+        handle_response(&resp, false);
+
+        break;
+    default:
+    {
+        const char *str = unctrl(c);
+
+        ui_textbox_add(tb, str);
+    }
+    }
+}
+
+/*
+ * Get difference between two struct timespec in milliseconds.
+ */
+int64_t
+timespec_diff_ms(const struct timespec *a, const struct timespec *b)
+{
+    int64_t sec = a->tv_sec - b->tv_sec;
+    int64_t nsec = a->tv_nsec - b->tv_nsec;
+
+    if (nsec < 0)
+    {
+        sec--;
+        nsec += 1000000000LL;
+    }
+
+    return sec * 1000LL + nsec / 1000000LL;
 }
 
 /*
@@ -319,9 +554,14 @@ sgreet_run(void)
     keypad(stdscr, true);
     nonl();
 
+    SGREET.bot_row = 4;
+
+    bool hastime = false;
+
     ui_textbox_init(&SGREET.username, 3, 0, "%s login: ", SGREET.uts.nodename);
-    ui_label_init(&SGREET.issue, 0, 0, "%s", get_issue("/etc/issue"));
-    ui_label_init(&SGREET.entry, 2, 0, NULL);
+    ui_label_init(&SGREET.issue, 0, 0);
+    ui_label_init(&SGREET.entry, 2, 0);
+    ui_label_init(&SGREET.msg, SGREET.bot_row, 0);
     apply_current_entry();
 
     refresh();
@@ -330,9 +570,20 @@ sgreet_run(void)
     {
         set_cursor(CURSOR_OFF);
 
+        ui_label_update(&SGREET.issue, "%s", get_issue("/etc/issue", &hastime));
+
         ui_textbox_draw(&SGREET.username);
         ui_label_draw(&SGREET.issue);
         ui_label_draw(&SGREET.entry);
+
+        // Make sure message is at the bottom (under any auth prompts)
+        ui_label_setpos(&SGREET.msg, SGREET.bot_row, 0);
+        ui_label_draw(&SGREET.msg);
+
+        // Draw any auth prompts
+        if (SGREET.auth != NULL)
+            for (int i = 0; i < SGREET.auth_len; i++)
+                ui_textbox_draw(SGREET.auth + i);
 
         switch (SGREET.state)
         {
@@ -340,6 +591,8 @@ sgreet_run(void)
             ui_textbox_focus(&SGREET.username);
             break;
         case SGREET_STATE_AUTH:
+            // Focus bottommost auth prompt (since thats the one that is active)
+            ui_textbox_focus(SGREET.auth + SGREET.auth_len - 1);
             break;
         default:
             break;
@@ -348,10 +601,60 @@ sgreet_run(void)
         doupdate();
         set_cursor(CURSOR_ON);
 
+        int             delta = -1;
+        struct timespec now;
+
+        // Must update every second for timer if shown, or if there is a
+        // message, then show it for a while.
+        if (hastime)
+        {
+            // Make sure that we update synchronized to the clock
+            clock_gettime(CLOCK_REALTIME, &now);
+            delta = (1000000000LL - now.tv_nsec + 999999LL) / 1000000LL;
+        }
+        if (*SGREET.msg.str != NUL)
+        {
+            if (delta == -1 || delta > SGREET.msg_remain)
+                delta = SGREET.msg_remain;
+
+            clock_gettime(CLOCK_MONOTONIC, &now);
+        }
+
+        timeout(delta);
+
         int c = getch();
 
+        // If there is a message, then check if enough time has passed
+        if (*SGREET.msg.str != NUL)
+        {
+            struct timespec newnow;
+            clock_gettime(CLOCK_MONOTONIC, &newnow);
+
+            int elapsed = (int)timespec_diff_ms(&newnow, &now);
+
+            SGREET.msg_remain -= elapsed;
+
+            if (SGREET.msg_remain <= 0)
+            {
+                SGREET.msg_remain = MSG_DELAY;
+                ui_label_update(&SGREET.msg, NULL);
+            }
+        }
+
+        if (c == ERR)
+            continue;
+
         if (c == 3) // Ctrl-C
-            break;
+        {
+            // If we are in an auth prompt, then cancel the session instead
+            if (SGREET.state == SGREET_STATE_AUTH)
+            {
+                cancel_session();
+                continue;
+            }
+            else
+                break;
+        }
 
         switch (SGREET.state)
         {

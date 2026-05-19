@@ -29,6 +29,7 @@ Options:
     -v,--version                print version
     -s,--sessions {PATH}        session directory to search
     -p,--persist session,user   persist state
+    -f,--persist-path {PATH}    file to store state in
     -l,--logfile {PATH}         file to log messages to
     -a,--asterisks              show password in asterisks
 ```
@@ -37,5 +38,5 @@ Example command line
 ```
 sgreet --sessions /usr/local/share/wayland-sessions --logfile /var/cache/sgreet/log.txt --persist user,session
 ```
-Note that /var/cache/sgreet must already exist and be accessible by the greeter user for logging and persistence to work.
-
+Note that `/var/cache/sgreet` must already exist and be accessible by the greeter
+user for logging and persistence to work.

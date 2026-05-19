@@ -99,6 +99,7 @@ help_msg(void)
     printf("    -v,--version                print version\n");
     printf("    -s,--sessions {PATH}        session directory to search\n");
     printf("    -p,--persist session,user   persist state\n");
+    printf("    -f,--persist-path {PATH}    file to store state in\n");
     printf("    -l,--logfile {PATH}         file to log messages to\n");
     printf("    -a,--asterisks              show password in asterisks\n");
 }

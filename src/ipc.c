@@ -49,34 +49,6 @@ ipc_init(void)
 }
 
 /*
- * Add a string value to a JSON object. Note that "key" is assumed to be a
- * static string.
- */
-static inline void
-add_string_to_json_object(
-    struct json_object *obj, const char *key, const char *val
-)
-{
-    json_object_object_add_ex(
-        obj, key, json_object_new_string(val), JSON_C_OBJECT_ADD_CONSTANT_KEY
-    );
-}
-
-/*
- * Return string value of an entry in a JSON object. Returns NULL if not exists.
- */
-static inline const char *
-get_string_from_json_object(struct json_object *obj, const char *key)
-{
-    struct json_object *val;
-
-    if (!json_object_object_get_ex(obj, key, &val))
-        return NULL;
-
-    return json_object_get_string(val);
-}
-
-/*
  * Write "obj" to "fd" in greetd serialization format. Returns OK on success and
  * FAIL on failure.
  */

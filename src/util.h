@@ -1,5 +1,6 @@
 #pragma once
 
+#include <json.h>
 #include <stddef.h>
 
 #ifndef OK
@@ -17,3 +18,12 @@
 
 void  sgreet_log(const char *fmt, ...) PRINTFLIKE(1, 2);
 char *sgreet_strdup_printf(const char *fmt, ...);
+void  add_string_to_json_object_len(
+    struct json_object *obj, const char *key, const char *val, int len
+);
+void add_string_to_json_object(
+    struct json_object *obj, const char *key, const char *val
+);
+const char *
+get_string_from_json_object(struct json_object *obj, const char *key);
+int64_t timespec_diff_ms(const struct timespec *a, const struct timespec *b);

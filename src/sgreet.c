@@ -1,5 +1,6 @@
 #include "sgreet.h"
 #include "ipc.h"
+#include "persist.h"
 #include "util.h"
 #include <dirent.h>
 #include <ncurses.h>
@@ -9,7 +10,7 @@
 #include <time.h>
 #include <unistd.h>
 
-struct sgreet SGREET;
+struct sgreet SGREET = {0};
 
 static void
 clear_desktop_entry(struct desktop_entry *entry)
@@ -166,6 +167,14 @@ sgreet_init(const char **session_dirs, int session_dirs_len)
     struct desktop_entry *entries = NULL;
     int                   entries_len = 0;
 
+    if (SGREET.persist != 0 && SGREET.persist_path == NULL)
+    {
+        // Use default location
+        SGREET.persist_path = "/var/cache/sgreet/persist.json";
+        SGREET.persist |= PERSIST_STATIC;
+    }
+    persist_read();
+
     for (int i = 0; i < session_dirs_len; i++)
     {
         const char *dir = session_dirs[i];
@@ -199,14 +208,20 @@ sgreet_init(const char **session_dirs, int session_dirs_len)
                 ret = parse_desktop_file(fullpath, entries + entries_len - 1);
             }
 
-            free(fullpath);
-
             if (ret == FAIL)
                 entries_len--;
+            else if (
+                SGREET.last_session != NULL &&
+                strcmp(fullpath, SGREET.last_session) == 0
+            )
+                SGREET.cur_entry = entries_len - 1;
+
+            free(fullpath);
         }
 
         closedir(dp);
     }
+    free(SGREET.last_session);
 
     if (entries == NULL)
     {
@@ -253,6 +268,9 @@ sgreet_uninit(void)
         free(SGREET.auth);
     }
 
+    if (!(SGREET.persist & PERSIST_STATIC))
+        free(SGREET.persist_path);
+
     if (SGREET.sock_fd != -1)
         close(SGREET.sock_fd);
 }
@@ -281,7 +299,7 @@ add_auth_prompt(const char *prompt, bool secret)
             tb->show = UI_TEXTBOX_SHOW_INVIS;
     }
     else
-            tb->show = UI_TEXTBOX_SHOW_NORMAL;
+        tb->show = UI_TEXTBOX_SHOW_NORMAL;
 
     SGREET.state = SGREET_STATE_AUTH;
 
@@ -324,6 +342,7 @@ handle_response(struct ipc_response *resp, bool start)
         if (start)
         {
             endwin();
+            persist_save();
             sgreet_uninit();
             exit(0);
         }
@@ -520,24 +539,6 @@ handle_auth_state(int c)
 }
 
 /*
- * Get difference between two struct timespec in milliseconds.
- */
-int64_t
-timespec_diff_ms(const struct timespec *a, const struct timespec *b)
-{
-    int64_t sec = a->tv_sec - b->tv_sec;
-    int64_t nsec = a->tv_nsec - b->tv_nsec;
-
-    if (nsec < 0)
-    {
-        sec--;
-        nsec += 1000000000LL;
-    }
-
-    return sec * 1000LL + nsec / 1000000LL;
-}
-
-/*
  * Start running the greeter. Returns OK on success and FAIL on failure.
  */
 int
@@ -559,6 +560,18 @@ sgreet_run(void)
     bool hastime = false;
 
     ui_textbox_init(&SGREET.username, 3, 0, "%s login: ", SGREET.uts.nodename);
+    if (SGREET.last_user != NULL)
+    {
+        snprintf(
+            SGREET.username.content, sizeof(SGREET.username.content), "%s",
+            SGREET.last_user
+        );
+        SGREET.username.len = strlen(SGREET.last_user);
+        // Set cursor position at the end
+        SGREET.username.curpos = SGREET.username.len;
+        free(SGREET.last_user);
+    }
+
     ui_label_init(&SGREET.issue, 0, 0);
     ui_label_init(&SGREET.entry, 2, 0);
     ui_label_init(&SGREET.msg, SGREET.bot_row, 0);

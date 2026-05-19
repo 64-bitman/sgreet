@@ -20,6 +20,10 @@ enum sgreet_state
     SGREET_STATE_AUTH,
 };
 
+#define PERSIST_SESSION 1
+#define PERSIST_USER 2
+#define PERSIST_STATIC 2
+
 struct sgreet
 {
     FILE *logfile;
@@ -29,7 +33,8 @@ struct sgreet
 
     struct desktop_entry *entries;
     int                   entries_len;
-    int                   cur_entry;
+    int                   cur_entry;    // Index in "entries"
+    char                 *last_session; // Path to last session file or NULL
 
     enum sgreet_state state;
 
@@ -39,17 +44,19 @@ struct sgreet
 #define MSG_DELAY 2000
     int               msg_remain; // Remaining time in ms to display msg
     struct ui_textbox username;
+    char             *last_user; // May be NULL
 
     int                auth_len;
     struct ui_textbox *auth; // Array of auth prompts from greetd. NULL if there
                              // are none.
 
-    int bot_row;             // Bottommost row
+    int bot_row; // Bottommost row
 
     int sock_fd; // File descriptor for greetd socket
 
-    bool persist;
-    bool asterisks;
+    int   persist; // PERSIST_*
+    char *persist_path;
+    bool  asterisks;
 };
 
 extern struct sgreet SGREET;

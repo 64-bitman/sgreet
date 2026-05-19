@@ -6,11 +6,16 @@
 #include <string.h>
 
 static const struct option OPTIONS[] = {
+    {"version", no_argument, 0, 'v'},
+    {"help", no_argument, 0, 'h'},
     {"sessions", required_argument, 0, 's'},
-    {"persist", no_argument, 0, 'p'},
+    {"persist", required_argument, 0, 'p'},
+    {"persist-path", required_argument, 0, 'f'},
     {"logfile", required_argument, 0, 'l'},
     {"asterisks", no_argument, 0, 'a'},
 };
+
+static void help_msg(void);
 
 int
 main(int argc, char **argv)
@@ -22,10 +27,16 @@ main(int argc, char **argv)
                                 // directory containing .desktop files.
     int session_dirs_len = 0;
 
-    while ((c = getopt_long(argc, argv, "s:pl:a", OPTIONS, &idx)) != -1)
+    while ((c = getopt_long(argc, argv, "vhs:pl:a", OPTIONS, &idx)) != -1)
     {
         switch (c)
         {
+        case 'v':
+            printf("version 1.0\n");
+            return EXIT_SUCCESS;
+        case 'h':
+            help_msg();
+            return EXIT_SUCCESS;
         case 's':
             session_dirs_len++;
             session_dirs =
@@ -35,7 +46,13 @@ main(int argc, char **argv)
                 session_dirs_len--;
             break;
         case 'p':
-            SGREET.persist = true;
+            if (strstr(optarg, "session") != NULL)
+                SGREET.persist |= PERSIST_SESSION;
+            if (strstr(optarg, "user") != NULL)
+                SGREET.persist |= PERSIST_USER;
+            break;
+        case 'f':
+            SGREET.persist_path = strdup(optarg);
             break;
         case 'l':
         {
@@ -71,4 +88,17 @@ main(int argc, char **argv)
     sgreet_uninit();
 
     return ret == OK ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+static void
+help_msg(void)
+{
+    printf("Usage: sgreet [OPTIONS]\n\n");
+    printf("Options:\n");
+    printf("    -h,--help                   print this help message\n");
+    printf("    -v,--version                print version\n");
+    printf("    -s,--sessions {PATH}        session directory to search\n");
+    printf("    -p,--persist session,user   persist state\n");
+    printf("    -l,--logfile {PATH}         file to log messages to\n");
+    printf("    -a,--asterisks              show password in asterisks\n");
 }

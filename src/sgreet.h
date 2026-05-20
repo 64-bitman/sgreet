@@ -22,7 +22,7 @@ enum sgreet_state
 
 #define PERSIST_SESSION 1
 #define PERSIST_USER 2
-#define PERSIST_STATIC 2
+#define PERSIST_STATIC 4
 
 struct sgreet
 {

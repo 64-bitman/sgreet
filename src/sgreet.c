@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -190,15 +191,26 @@ sgreet_init(const char **session_dirs, int session_dirs_len)
 
         while ((de = readdir(dp)) != NULL)
         {
-            if (de->d_type != DT_REG)
-                continue;
+            char is_dot_dir = (
+                ((de->d_name[0] == '.') && (de->d_name[1] == '\0'))
+                || ((de->d_name[0] == '.') && (de->d_name[1] == '.') && (de->d_name[2] == '\0'))
+            );
+            if (is_dot_dir) continue;
 
             char *fullpath = sgreet_strdup_printf("%s/%s", dir, de->d_name);
-            int   ret = FAIL;
 
             if (fullpath == NULL)
                 continue;
 
+            // follow symlinks
+            struct stat st;
+            if (stat(fullpath, &st) == -1 || !S_ISREG(st.st_mode))
+            {
+                free(fullpath);
+                continue;
+            }
+
+            int ret = FAIL;
             struct desktop_entry *tmp =
                 realloc(entries, ++entries_len * sizeof(struct desktop_entry));
 

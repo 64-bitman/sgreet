@@ -151,8 +151,14 @@ get_issue(const char *path, bool *has_time)
         else
             buf[len++] = c;
     }
+
+    if (len < 0) {
+        len = 0;
+    } else if (len >= BUFSIZE) {
+        len = BUFSIZE - 1;
+    }
+    buf[len] = NUL;
 #undef BUFSIZE
-    buf[len - 1] = NUL;
 
     fclose(fp);
     return buf;

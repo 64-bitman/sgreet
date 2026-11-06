@@ -98,7 +98,7 @@ get_issue(const char *path, bool *has_time)
     if (fp == NULL)
         return "";
 
-#define BUFSIZE 128
+#define BUFSIZE 4096
     static char buf[BUFSIZE];
     int         len = 0;
     int         c;

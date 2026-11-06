@@ -14,7 +14,7 @@ static const struct option OPTIONS[] = {
     {"persist-path", required_argument, 0, 'f'},
     {"logfile", required_argument, 0, 'l'},
     {"asterisks", no_argument, 0, 'a'},
-    { 0, 0, 0, 0 },
+    {0, 0, 0, 0},
 };
 
 static void help_msg(void);
@@ -102,7 +102,10 @@ help_msg(void)
     printf("Options:\n");
     printf("    -h,--help                   print this help message\n");
     printf("    -v,--version                print version\n");
-    printf("    -s,--sessions {PATH}        session directory to search (can be specified multiple times)\n");
+    printf(
+        "    -s,--sessions {PATH}        session directory to search (can be "
+        "specified multiple times)\n"
+    );
     printf("    -p,--persist session,user   persist state\n");
     printf("    -P,--persist-confirm        auto-confirm last username\n");
     printf("    -f,--persist-path {PATH}    file to store state in\n");

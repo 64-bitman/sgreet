@@ -6,8 +6,8 @@
 #include <ncurses.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -152,9 +152,12 @@ get_issue(const char *path, bool *has_time)
             buf[len++] = c;
     }
 
-    if (len < 0) {
+    if (len < 0)
+    {
         len = 0;
-    } else if (len >= BUFSIZE) {
+    }
+    else if (len >= BUFSIZE)
+    {
         len = BUFSIZE - 1;
     }
     buf[len] = NUL;
@@ -197,11 +200,12 @@ sgreet_init(const char **session_dirs, int session_dirs_len)
 
         while ((de = readdir(dp)) != NULL)
         {
-            char is_dot_dir = (
-                ((de->d_name[0] == '.') && (de->d_name[1] == '\0'))
-                || ((de->d_name[0] == '.') && (de->d_name[1] == '.') && (de->d_name[2] == '\0'))
-            );
-            if (is_dot_dir) continue;
+            char is_dot_dir =
+                (((de->d_name[0] == '.') && (de->d_name[1] == '\0')) ||
+                 ((de->d_name[0] == '.') && (de->d_name[1] == '.') &&
+                  (de->d_name[2] == '\0')));
+            if (is_dot_dir)
+                continue;
 
             char *fullpath = sgreet_strdup_printf("%s/%s", dir, de->d_name);
 
@@ -216,7 +220,7 @@ sgreet_init(const char **session_dirs, int session_dirs_len)
                 continue;
             }
 
-            int ret = FAIL;
+            int                   ret = FAIL;
             struct desktop_entry *tmp =
                 realloc(entries, ++entries_len * sizeof(struct desktop_entry));
 
@@ -427,8 +431,8 @@ create_session(void)
 
     snprintf(
         req.body.create_session.username,
-        sizeof(req.body.create_session.username), "%.*s",
-        SGREET.username.len, SGREET.username.content
+        sizeof(req.body.create_session.username), "%.*s", SGREET.username.len,
+        SGREET.username.content
     );
 
     struct ipc_response resp = ipc_roundtrip(SGREET.sock_fd, &req);

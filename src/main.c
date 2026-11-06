@@ -29,7 +29,7 @@ main(int argc, char **argv)
                                 // directory containing .desktop files.
     int session_dirs_len = 0;
 
-    while ((c = getopt_long(argc, argv, "vhs:pPl:a", OPTIONS, &idx)) != -1)
+    while ((c = getopt_long(argc, argv, "vhs:pPfl:a", OPTIONS, &idx)) != -1)
     {
         switch (c)
         {

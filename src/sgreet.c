@@ -414,6 +414,29 @@ handle_response(struct ipc_response *resp, bool start)
 }
 
 static void
+create_session(void)
+{
+    sgreet_log(
+        "Creating session for '%.*s'", SGREET.username.len,
+        SGREET.username.content
+    );
+
+    struct ipc_request req;
+
+    req.type = IPC_REQUEST_CREATE_SESSION;
+
+    snprintf(
+        req.body.create_session.username,
+        sizeof(req.body.create_session.username), "%.*s",
+        SGREET.username.len, SGREET.username.content
+    );
+
+    struct ipc_response resp = ipc_roundtrip(SGREET.sock_fd, &req);
+
+    handle_response(&resp, false);
+}
+
+static void
 handle_username_state(int c)
 {
     switch (c)
@@ -435,24 +458,7 @@ handle_username_state(int c)
     case KEY_ENTER:
     case '\n':
     case '\r':
-        sgreet_log(
-            "Creating session for '%.*s'", SGREET.username.len,
-            SGREET.username.content
-        );
-
-        struct ipc_request req;
-
-        req.type = IPC_REQUEST_CREATE_SESSION;
-
-        snprintf(
-            req.body.create_session.username,
-            sizeof(req.body.create_session.username), "%.*s",
-            SGREET.username.len, SGREET.username.content
-        );
-
-        struct ipc_response resp = ipc_roundtrip(SGREET.sock_fd, &req);
-
-        handle_response(&resp, false);
+        create_session();
         break;
     default:
     {
@@ -509,6 +515,12 @@ handle_auth_state(int c)
 
     switch (c)
     {
+    // there isn't a clean way to get the ESC key in ncurses, maybe just don't.
+    case KEY_UP:
+        cancel_session();
+        ui_label_highlight(&SGREET.entry, false);
+        set_cursor(CURSOR_UNSLEEP);
+        break;
     case KEY_LEFT:
         ui_textbox_move(tb, -1);
         break;
@@ -588,6 +600,8 @@ sgreet_run(void)
         // Set cursor position at the end
         SGREET.username.curpos = SGREET.username.len;
         free(SGREET.last_user);
+
+        create_session();
     }
 
     ui_label_init(&SGREET.issue, 0, 0);

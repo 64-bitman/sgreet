@@ -27,7 +27,7 @@ Usage: sgreet [OPTIONS]
 Options:
     -h,--help                   print this help message
     -v,--version                print version
-    -s,--sessions {PATH}        session directory to search
+    -s,--sessions {PATH}        session directory to search (can be specified multiple times)
     -p,--persist session,user   persist state
     -f,--persist-path {PATH}    file to store state in
     -l,--logfile {PATH}         file to log messages to

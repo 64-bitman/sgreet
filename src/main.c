@@ -34,7 +34,7 @@ main(int argc, char **argv)
         switch (c)
         {
         case 'v':
-            printf("version 1.0\n");
+            printf("%s\n", SGREET_VERSION);
             return EXIT_SUCCESS;
         case 'h':
             help_msg();

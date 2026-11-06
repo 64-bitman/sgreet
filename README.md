@@ -9,6 +9,9 @@ A slightly nicer version of agreety for greetd
 Build dependencies:
 ```
 meson
+ninja
+pkg-config
+
 json-c
 ncurses
 ```

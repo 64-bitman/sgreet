@@ -10,6 +10,7 @@ static const struct option OPTIONS[] = {
     {"help", no_argument, 0, 'h'},
     {"sessions", required_argument, 0, 's'},
     {"persist", required_argument, 0, 'p'},
+    {"persist-confirm", no_argument, 0, 'P'},
     {"persist-path", required_argument, 0, 'f'},
     {"logfile", required_argument, 0, 'l'},
     {"asterisks", no_argument, 0, 'a'},
@@ -28,7 +29,7 @@ main(int argc, char **argv)
                                 // directory containing .desktop files.
     int session_dirs_len = 0;
 
-    while ((c = getopt_long(argc, argv, "vhs:pl:a", OPTIONS, &idx)) != -1)
+    while ((c = getopt_long(argc, argv, "vhs:pPl:a", OPTIONS, &idx)) != -1)
     {
         switch (c)
         {
@@ -51,6 +52,9 @@ main(int argc, char **argv)
                 SGREET.persist |= PERSIST_SESSION;
             if (strstr(optarg, "user") != NULL)
                 SGREET.persist |= PERSIST_USER;
+            break;
+        case 'P':
+            SGREET.persist_confirm_user = true;
             break;
         case 'f':
             SGREET.persist_path = strdup(optarg);
@@ -100,6 +104,7 @@ help_msg(void)
     printf("    -v,--version                print version\n");
     printf("    -s,--sessions {PATH}        session directory to search (can be specified multiple times)\n");
     printf("    -p,--persist session,user   persist state\n");
+    printf("    -P,--persist-confirm        auto-confirm last username\n");
     printf("    -f,--persist-path {PATH}    file to store state in\n");
     printf("    -l,--logfile {PATH}         file to log messages to\n");
     printf("    -a,--asterisks              show password in asterisks\n");

@@ -56,6 +56,7 @@ struct sgreet
 
     int   persist; // PERSIST_*
     char *persist_path;
+    bool  persist_confirm_user;
     bool  asterisks;
 };
 

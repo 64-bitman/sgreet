@@ -601,7 +601,8 @@ sgreet_run(void)
         SGREET.username.curpos = SGREET.username.len;
         free(SGREET.last_user);
 
-        create_session();
+        if (SGREET.persist_confirm_user)
+            create_session();
     }
 
     ui_label_init(&SGREET.issue, 0, 0);
